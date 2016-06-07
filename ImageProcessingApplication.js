@@ -57,10 +57,10 @@ ImageProcessingApplication.prototype.__Constructor = function()
     this.__menu = null;
     this.__toolbar = null;
     this.__statusBar = null;
-    this.__canvasWindow = null;
-    this.__openWindow = null;
-    this.__openFromUrlWindow = null;
-    this.__histogramWindow = null;
+    this.__canvasDialog = null;
+    this.__openDialog = null;
+    this.__openFromUrlDialog = null;
+    this.__histogramDialog = null;
     this.__adjustmentsWindow = null;
     this.__thresholdWindow = null;
     this.__loadingDialog = null;
@@ -75,6 +75,7 @@ ImageProcessingApplication.prototype.__Constructor = function()
     this.__asyncOpenedImage = null;
     this.__outputImageData = null;
 
+    this.__zoomLevel = 1;
     this.__fourierFilterRadius = 0;
 
     this.__worker = null;
@@ -145,8 +146,11 @@ ImageProcessingApplication.prototype.OnStart = function()
     this.__toolbar.setItemToolTip("histogram", "Show Histogram");
     this.__toolbar.addButton("reset", 4, null, "img/reset.png", null);
     this.__toolbar.setItemToolTip("reset", "Reset All Changes");
+    this.__toolbar.addSlider("zoom", 5, 100, 10, 50, 10, "x1", "x5", null);
+    this.__toolbar.setItemToolTip("zoom", "Zoom");
 
     this.__toolbar.attachEvent("onClick", this.OnClick_Toolbar.bind(this));
+    this.__toolbar.attachEvent("onValueChange", this.OnValueChange_Toolbar.bind(this));
 
     this.__statusBar = this.__layout.attachStatusBar();
 };
@@ -161,23 +165,42 @@ ImageProcessingApplication.prototype.ResizePanel = function(e)
 };
 
 // --------------------------------------------------
+ImageProcessingApplication.prototype.OnValueChange_Toolbar = function(id, value)
+{
+    if (id === "zoom")
+    {
+        this.__zoomLevel = value / 10;
+        if (this.__openedImage)
+        {
+            var width = Math.floor(this.__openedImage.width * this.__zoomLevel);
+            var height = Math.floor(this.__openedImage.height * this.__zoomLevel);
+            this.__outputImageData = this.__context.createImageData(width, height);
+            this.ResetAllChanges();
+
+            Assert.NotNull(this.__canvasDialog);
+            this.__canvasDialog.setDimension(width, height);
+        }
+    }
+};
+
+// --------------------------------------------------
 ImageProcessingApplication.prototype.OnClose_OpenWindow = function()
 {
-    this.__openWindow = null;
+    this.__openDialog = null;
     return true;
 };
 
 // --------------------------------------------------
 ImageProcessingApplication.prototype.OnClose_OpenFromUrlWindow = function()
 {
-    this.__openFromUrlWindow = null;
+    this.__openFromUrlDialog = null;
     return true;
 };
 
 // --------------------------------------------------
 ImageProcessingApplication.prototype.OnClose_HistogramWindow = function()
 {
-    this.__histogramWindow = null;
+    this.__histogramDialog = null;
     return true;
 };
 
@@ -191,10 +214,19 @@ ImageProcessingApplication.prototype.OnClose_AdjustmentsWindow = function()
 // --------------------------------------------------
 ImageProcessingApplication.prototype.OnClose_CanvasWindow = function()
 {
-    this.__canvasWindow.detachObject(this.__outputCanvas);
-    this.__canvasWindow = null;
+    this.__canvasDialog.detachObject(this.__outputCanvas);
+    this.__canvasDialog = null;
     this.__openedImage = null;
     return true;
+};
+
+// --------------------------------------------------
+ImageProcessingApplication.prototype.OnResizeFinish_CanvasWindow = function()
+{
+    /*var dimension = this.__canvasDialog.getDimension();
+    var top = (dimension[1] - this.__outputCanvas.height) * 0.5,
+        left = (dimension[0] - this.__outputCanvas.width) * 0.5;
+    this.__outputCanvas.style.margin = top + "px 0px 0px " + left + "px";*/
 };
 
 // --------------------------------------------------
@@ -265,15 +297,15 @@ ImageProcessingApplication.prototype.OnClick_Toolbar = function(id)
 {
     if (id == "open")
     {
-        this.ShowOpenWindow();
+        this.ShowOpenDialog();
     }
     else if (id == "openFromUrl")
     {
-        this.ShowOpenFromURLWindow();
+        this.ShowOpenFromURLDialog();
     }
     else if (id == "histogram")
     {
-        this.ShowHistogramWindow();
+        this.ShowHistogramDialog();
     }
     else if (id == "reset")
     {
@@ -282,21 +314,21 @@ ImageProcessingApplication.prototype.OnClick_Toolbar = function(id)
 };
 
 // --------------------------------------------------
-ImageProcessingApplication.prototype.ShowOpenWindow = function()
+ImageProcessingApplication.prototype.ShowOpenDialog = function()
 {
-    if (this.__openWindow != null)
+    if (this.__openDialog != null)
     {
         return;
     }
 
-    this.__openWindow = this.__windowsManager.createWindow("openWindow", 230, 150, 176, 130);
-    this.__openWindow.setText("Open...");
-    this.__openWindow.keepInViewport(true);
-    this.__openWindow.denyResize();
+    this.__openDialog = this.__windowsManager.createWindow("openWindow", 230, 150, 176, 130);
+    this.__openDialog.setText("Open...");
+    this.__openDialog.keepInViewport(true);
+    this.__openDialog.denyResize();
     this.__windowsManager.window("openWindow").attachEvent("onClose", this.OnClose_OpenWindow.bind(this));
 
     var openWindowContent = document.createElement("div");
-    this.__openWindow.attachObject(openWindowContent);
+    this.__openDialog.attachObject(openWindowContent);
 
     var openSelectDiv = document.createElement("div");
     openWindowContent.appendChild(openSelectDiv);
@@ -308,25 +340,26 @@ ImageProcessingApplication.prototype.ShowOpenWindow = function()
 };
 
 // --------------------------------------------------
-ImageProcessingApplication.prototype.ShowOpenFromURLWindow = function()
+ImageProcessingApplication.prototype.ShowOpenFromURLDialog = function()
 {
-    if (this.__openFromUrlWindow != null)
+    if (this.__openFromUrlDialog != null)
     {
         return;
     }
 
-    this.__openFromUrlWindow = this.__windowsManager.createWindow("openFromUrlWindow", 230, 150, 176, 130);
-    this.__openFromUrlWindow.setText("Open from URL...");
-    this.__openFromUrlWindow.keepInViewport(true);
-    this.__openFromUrlWindow.denyResize();
+    this.__openFromUrlDialog = this.__windowsManager.createWindow("openFromUrlWindow", 230, 150, 332, 130);
+    this.__openFromUrlDialog.setText("Open from URL...");
+    this.__openFromUrlDialog.keepInViewport(true);
+    this.__openFromUrlDialog.denyResize();
     this.__windowsManager.window("openFromUrlWindow").attachEvent("onClose", this.OnClose_OpenFromUrlWindow.bind(this));
 
     var openFromUrlWindowContent = document.createElement("div");
-    this.__openFromUrlWindow.attachObject(openFromUrlWindowContent);
+    this.__openFromUrlDialog.attachObject(openFromUrlWindowContent);
 
     var openFromUrlInputTextDiv = document.createElement("div");
     openFromUrlWindowContent.appendChild(openFromUrlInputTextDiv);
-    openFromUrlInputTextDiv.appendChild((this.__openFromUrlText = Text.Create("openFromUrlText", "")));
+    openFromUrlInputTextDiv.appendChild((this.__openFromUrlText = Text.Create("openFromUrlText", "", "text")));
+    this.__openFromUrlText.style.width = "280px";
 
     var openFromUrlButtonDiv = document.createElement("div");
     openFromUrlWindowContent.appendChild(openFromUrlButtonDiv);
@@ -410,29 +443,29 @@ ImageProcessingApplication.prototype.HideLoadingDialog = function()
 };
 
 // --------------------------------------------------
-ImageProcessingApplication.prototype.ShowHistogramWindow = function()
+ImageProcessingApplication.prototype.ShowHistogramDialog = function()
 {
     if (this.__openedImage == null)
     {
         return;
     }
 
-    if (this.__histogramWindow != null)
+    if (this.__histogramDialog != null)
     {
         return;
     }
 
-    this.__histogramWindow = this.__windowsManager.createWindow("histogramWindow", 230, 150, 320, 240);
-    this.__histogramWindow.setText("Histogram");
-    this.__histogramWindow.keepInViewport(true);
-    this.__histogramWindow.denyResize();
+    this.__histogramDialog = this.__windowsManager.createWindow("histogramWindow", 230, 150, 320, 240);
+    this.__histogramDialog.setText("Histogram");
+    this.__histogramDialog.keepInViewport(true);
+    this.__histogramDialog.denyResize();
     this.__windowsManager.window("histogramWindow").attachEvent("onClose", this.OnClose_HistogramWindow.bind(this));
 
     var histogramChartDiv = document.createElement("div");
     histogramChartDiv.id = "histogramChartDiv"
     histogramChartDiv.style.width = "100%";
     histogramChartDiv.style.height = "100%";
-    this.__histogramWindow.appendObject(histogramChartDiv);
+    this.__histogramDialog.appendObject(histogramChartDiv);
 
     var chart = new dhtmlXChart({
         view: "area",
@@ -656,73 +689,66 @@ ImageProcessingApplication.prototype.ApplyTransformation = function(transformati
 };
 
 // --------------------------------------------------
-ImageProcessingApplication.prototype.OnClick_OpenButton = function()
+ImageProcessingApplication.prototype.ShowOpenedImageDialog = function(title)
 {
-    this.__openWindow.close();
-
-    if (this.__canvasWindow != null)
-    {
-        this.__canvasWindow.close();
-    }
-
-    var imageName = this.__openSelect.options[this.__openSelect.selectedIndex].text;
-    this.__openedImage = this.__images.Find(imageName);
-
     if (this.__openedImage == null)
     {
         return;
     }
 
-    this.__outputImageData = this.__context.createImageData(this.__openedImage.width, this.__openedImage.height);
+    var width = Math.floor(this.__openedImage.width * this.__zoomLevel);
+    var height = Math.floor(this.__openedImage.height * this.__zoomLevel);
+    this.__outputImageData = this.__context.createImageData(width, height);
     this.ResetAllChanges();
 
-    var width = Math.max(this.__openedImage.width + 32, 128);
-    var height = Math.max(this.__openedImage.height + 32, 128);
+    width = Math.max(width + 16, 128);
+    height = Math.max(height + 16, 128);
 
-    this.__canvasWindow = this.__windowsManager.createWindow("canvasWindow", 10, 80, width, height);
-    this.__canvasWindow.setText(imageName);
-    this.__canvasWindow.keepInViewport(true);
-    this.__canvasWindow.denyResize();
+    if (this.__canvasDialog != null)
+    {
+        this.__canvasDialog.close();
+        this.__canvasDialog = null;
+    }
+
+    this.__canvasDialog = this.__windowsManager.createWindow("canvasWindow", 10, 80, width, height);
+    this.__canvasDialog.setText(title);
+    this.__canvasDialog.keepInViewport(true);
+    this.__canvasDialog.attachEvent("onClose", this.OnClose_CanvasWindow.bind(this));
+    this.__canvasDialog.attachEvent("onResizeFinish", this.OnResizeFinish_CanvasWindow.bind(this));
+
     this.__outputCanvas.style.display = "visible";
-    this.__canvasWindow.attachObject(this.__outputCanvas);
-    this.__windowsManager.window("canvasWindow").attachEvent("onClose", this.OnClose_CanvasWindow.bind(this));
+    this.__canvasDialog.attachObject(this.__outputCanvas);
+};
+
+// --------------------------------------------------
+ImageProcessingApplication.prototype.OnClick_OpenButton = function()
+{
+    this.__openDialog.close();
+    var imageName = this.__openSelect.options[this.__openSelect.selectedIndex].text;
+    this.__openedImage = this.__images.Find(imageName);
+    this.ShowOpenedImageDialog(imageName);
 };
 
 // --------------------------------------------------
 ImageProcessingApplication.prototype.OnLoad_OpenFromUrlImage = function()
 {
+    this.__openFromUrlDialog.close();
     this.__openedImage = this.__asyncOpenedImage;
-
-    this.__outputImageData = this.__context.createImageData(this.__openedImage.width, this.__openedImage.height);
-    this.ResetAllChanges();
-
-    var width = Math.max(this.__openedImage.width + 32, 128);
-    var height = Math.max(this.__openedImage.height + 32, 128);
-
-    this.__canvasWindow = this.__windowsManager.createWindow("canvasWindow", 10, 80, width, height);
-    this.__canvasWindow.setText(this.__openFromUrlText.value);
-    this.__canvasWindow.keepInViewport(true);
-    this.__canvasWindow.denyResize();
-    this.__outputCanvas.style.display = "visible";
-    this.__canvasWindow.attachObject(this.__outputCanvas);
-    this.__windowsManager.window("canvasWindow").attachEvent("onClose", this.OnClose_CanvasWindow.bind(this));
-
-    this.HideLoadingDialog();
+    this.__asyncOpenedImage = null;
+    this.ShowOpenedImageDialog(this.__openFromUrlText.value);
 };
 
 // --------------------------------------------------
 ImageProcessingApplication.prototype.OnClick_OpenFromUrlButton = function()
 {
-    Assert.NotNull(this.__openFromUrlWindow);
+    Assert.NotNull(this.__openFromUrlDialog);
     Assert.NotNull(this.__openFromUrlText);
-
-    this.__openFromUrlWindow.close();
 
     this.ShowLoadingDialog();
 
-    if (this.__canvasWindow != null)
+    if (this.__canvasDialog != null)
     {
-        this.__canvasWindow.close();
+        this.__canvasDialog.close();
     }
     this.__asyncOpenedImage = new Image();
     this.__asyncOpenedImage.onload = this.OnLoad_OpenFromUrlImage.bind(this);
@@ -878,8 +904,9 @@ ImageProcessingApplication.prototype.OnUpdate = function(deltaTime)
 // --------------------------------------------------
 ImageProcessingApplication.prototype.DrawInputCanvas = function()
 {
-    this.__inputCanvas.width = this.__openedImage.width;
-    this.__inputCanvas.height = this.__openedImage.height;
+    this.__inputCanvas.width = Math.floor(this.__openedImage.width * this.__zoomLevel);
+    this.__inputCanvas.height = Math.floor(this.__openedImage.height * this.__zoomLevel);
+    this.__inputContext.scale(this.__zoomLevel, this.__zoomLevel);
     this.__inputContext.drawImage(this.__openedImage, 0, 0);
 };
 
